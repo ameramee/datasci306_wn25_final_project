@@ -240,8 +240,68 @@ print(n_alliterative)
 ## Part III: Pivoting
 
 * Create a new version of the `titles_basics` table that has one row for each title-genre combination. See the `separate_rows` function for a useful too here.
+
+```{r}
+title_basics <- read_rds("data/title_basics_sample.rda")   # or load(...rda)
+
+title_genre <- title_basics %>% 
+  select(tconst, startYear, genres) %>% 
+  filter(!is.na(genres), !is.na(startYear)) %>% 
+  separate_rows(genres, sep = ",") %>%            # 1 row per title‑genre
+  mutate(
+    startYear = as.integer(startYear),            # keeps year clean
+    genres     = trimws(genres)                   # removes leading spaces
+  ) %>% 
+  filter(genres != "")                            # drop blanks if any
+
+glimpse(title_genre)
+```
+
+
 * Using that table, create a line plot of the count different genres over time (you may limit this to the most common genres if you wish).
+
+```{r}
+# 0.  Load the table (use .rds or load the .rda you created)
+title_basics <- read_rds("data/title_basics_sample.rda")   # change if you used .rda
+
+# 1.  Build the tall title‑genre table (one row per title–genre)
+title_genre <- title_basics %>% 
+  select(tconst, startYear, genres) %>% 
+  filter(!is.na(startYear), !is.na(genres)) %>% 
+  separate_rows(genres, sep = ",") %>%           # explode the genre list
+  mutate(
+    startYear = as.integer(startYear),           # ensure numeric year
+    genres    = trimws(genres)                   # remove leading/trailing spaces
+  ) %>% 
+  filter(genres != "")                           # drop any blanks
+
+# 2.  Identify the top‑8 genres overall
+top_n <- 8
+top_genres <- title_genre %>% 
+  count(genres, sort = TRUE) %>% 
+  slice_head(n = top_n) %>% 
+  pull(genres)
+
+# 3.  Aggregate yearly counts for those genres
+genre_trend <- title_genre %>% 
+  filter(genres %in% top_genres) %>% 
+  group_by(startYear, genres) %>% 
+  summarise(n_titles = n(), .groups = "drop")
+
+# 4.  Plot
+ggplot(genre_trend, aes(startYear, n_titles, colour = genres)) +
+  geom_line(linewidth = 0.7) +
+  labs(
+    title  = "Most common genres over time",
+    x      = "Release year",
+    y      = "Number of titles",
+    colour = "Genre"
+  ) +
+  theme_minimal()
+```
+
 * Use the `model.matrix` function in the following way: `model.matrix(yourtalltable, ~ genre - 1)` to create a wide table with one column for each genre. Use this table to find the most common pair of genres (hint: use the `cor` function or produce facet plots)
+
 
 ## Part IV: Joining Tables
 
