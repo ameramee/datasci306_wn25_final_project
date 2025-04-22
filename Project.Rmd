@@ -41,7 +41,6 @@ title_ratings <- read_rds("data/title_ratings_sample.rda")
   * For each quantitative column, provide some summary statistics
   * For any character columns, decided if they are actually representing factors/categorical data with a moderate number of columns. If so report the distributions for these variables.
   * Provide a plot for each table. Across all of the plots, try to show off the most possible different ggplot features (`geoms_` functions, `stat_` functions, coordinate systems, facets, use of several variables, annotations)
-  
 ```{r}
 summary(name_basics$birthYear)
 summary(name_basics$deathYear)
@@ -118,17 +117,125 @@ runtime_summary <- title_basics_clean |>
 
 print(runtime_summary)
 ```
-  * How many titles are known for name that is different than the original release name?
+
+  * How many titles are known for name that is different than the original release name? 7244
   * Graph the conditional distributions of release year based on the previous results. Comment on any trends you observe.
+```{r}
+diff_titles <- title_basics |>
+  filter(primaryTitle != originalTitle)
+
+print(nrow(diff_titles))
+
+new_title_basics <- title_basics |>
+  mutate(title_diff = ifelse(primaryTitle != originalTitle, "Different Name", "Same Name"))
+
+ggplot(new_title_basics |> filter(!is.na(startYear)), aes(x = startYear, fill = title_diff)) +
+  geom_histogram(position = "identity", alpha = 0.5, bins = 50) +
+  labs(
+    title = "Distribution of Release Year by Title Match",
+    x = "Release Year",
+    y = "Count",
+    fill = "Title Match"
+  )
+
+```
+
 * For the ratings, use the `cut` function to break the data into three groups based on the average ratings. Are higher rated titles rated more often or less often than lower rated titles? 
+They are rated slightly less often than lower rated titles.
+```{r}
+title_ratings <- title_ratings |>
+  mutate(rating_group = cut(averageRating,
+                            breaks = quantile(averageRating, probs = c(0, 1/3, 2/3, 1), na.rm = TRUE),
+                            include.lowest = TRUE,
+                            labels = c("Low", "Medium", "High")))
+summary(title_ratings)
+ggplot(title_ratings, aes(x = rating_group, y = numVotes)) +
+  geom_boxplot(fill = "red") +
+  scale_y_log10() +
+  labs(
+    title = "Number of Votes by Rating Group",
+    x = "Rating Group",
+    y = "Number of Votes "
+  )
+```
+
 * For the names table, 
   * Count the number of titles each person is known for and plot this distribution.
   * investigate the age of cast members
       * Group the data into living and deceased cast members. 
       * For deceased cast members, provide a graph that shows the distribution of ages.
       * Do the same for living cast members.
+```{r}
+name_basics <- name_basics |>
+  mutate(num_known_titles = str_count(knownForTitles, ",") + 1)
+
+name_basics$num_known_titles[is.na(name_basics$knownForTitles)] <- 0
+
+ggplot(name_basics, aes(x = num_known_titles)) +
+  geom_histogram(binwidth = 1, fill = "lightblue", color = "black") +
+  scale_x_continuous(limits = c(0, 20)) +
+  labs(
+    title = "Distribution of Number of Known Titles per Person",
+    x = "Number of Known Titles",
+    y = "Number of People"
+  )
+
+name_basics_age <- name_basics |>
+  mutate(
+    birthYear = as.numeric(birthYear),
+    deathYear = as.numeric(deathYear),
+    is_alive = is.na(deathYear),
+    age = ifelse(is_alive, 2025 - birthYear, deathYear - birthYear)
+  ) |>
+  filter(!is.na(age), age > 0 & age < 120)
+
+ggplot(name_basics_age |> filter(!is_alive), aes(x = age)) +
+  geom_histogram(binwidth = 3, fill = "skyblue", color = "black") +
+  labs(
+    title = "Age at Death of Deceased Cast Members",
+    x = "Age",
+    y = "Count"
+  )
+
+ggplot(name_basics_age |> filter(is_alive), aes(x = age)) +
+  geom_histogram(binwidth = 5, fill = "green", color = "black") +
+  labs(
+    title = "Current Age of Living Cast Members (as of 2025)",
+    x = "Age",
+    y = "Count"
+  )
+```
+
 * Find all the actors with first names "Tom", "Thomas", "Thom" or "Tomas". How many are there?
+There are 3297
+```{r}
+names <- c("Tom", "Thomas", "Thom", "Tomas")
+
+toms <- name_basics |>
+  mutate(first_name = str_extract(primaryName, "^[^\\s]+")) |>
+  filter(first_name %in% names)
+
+n_toms <- nrow(toms)
+print(n_toms)
+```
 * How many titles use alliteration (i.e., all words in the title start with the same letter)?
+2895
+```{r}
+is_alliteration <- function(title) {
+  words <- str_split(title, "\\s+")[[1]]
+  words <- words[str_detect(words, "^[A-Za-z]")]
+  if (length(words) < 2) return(FALSE)
+  first_letters <- str_sub(words, 1, 1) |> str_to_lower()
+  length(unique(first_letters)) == 1
+}
+
+title_alliteration <- title_basics |>
+  filter(!is.na(primaryTitle)) |>
+  mutate(alliterative = map_lgl(primaryTitle, is_alliteration))
+
+n_alliterative <- sum(title_alliteration$alliterative)
+print(n_alliterative)
+```
 
 ## Part III: Pivoting
 
