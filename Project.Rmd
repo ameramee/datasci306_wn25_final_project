@@ -402,7 +402,7 @@ Family appears to be decreasing, and short has dramtically decreased over the la
 * Join the `title_basics` with the ratings table. Have the number of ratings changed over time (based on release year)? Display graphically but also answer with numerical results.
 ```{r}
 
-Join with title_basics on tconst  ----------------------------------
+# Join with title_basics on tconst  ----------------------------------
 titles_votes <- title_basics %>%        # assumes title_basics already in memory
   select(tconst, startYear) %>% 
   inner_join(title_ratings %>% 
@@ -410,7 +410,7 @@ titles_votes <- title_basics %>%        # assumes title_basics already in memory
              by = "tconst") %>% 
   filter(!is.na(startYear), !is.na(numVotes))
 
-Total votes by release year  ---------------------------------------
+# Total votes by release year  ---------------------------------------
 votes_by_year <- titles_votes %>% 
   group_by(startYear) %>% 
   summarise(total_votes = sum(numVotes), .groups = "drop") %>% 
