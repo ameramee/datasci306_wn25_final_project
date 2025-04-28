@@ -301,14 +301,137 @@ ggplot(genre_trend, aes(startYear, n_titles, colour = genres)) +
 ```
 
 * Use the `model.matrix` function in the following way: `model.matrix(yourtalltable, ~ genre - 1)` to create a wide table with one column for each genre. Use this table to find the most common pair of genres (hint: use the `cor` function or produce facet plots)
+```{r}
+library(tidyverse)
+library(Matrix)
 
+# tall table ------------------------------------------------------------
+title_genre <- title_basics %>% 
+  select(tconst, genres) %>% 
+  filter(!is.na(genres)) %>% 
+  separate_rows(genres, sep = ",") %>% 
+  mutate(genres = trimws(genres)) %>% 
+  filter(genres != "")
+
+# one-hot matrix --------------------------------------------------------
+mm <- model.matrix(~ genres - 1, data = title_genre)
+colnames(mm) <- sub("^genres", "", colnames(mm))
+
+# collapse to one row per film -----------------------------------------
+incidence <- (rowsum(as.matrix(mm), group = title_genre$tconst) > 0) * 1
+
+# co-occurrence counts --------------------------------------------------
+co_cnt <- crossprod(incidence)
+diag(co_cnt) <- 0
+
+# tidy upper-triangle (each pair once) ---------------------------------
+top_pair <- as.data.frame(as.table(co_cnt), stringsAsFactors = FALSE) %>% 
+  rename(genre_1 = Var1, genre_2 = Var2, titles = Freq) %>% 
+  filter(titles > 0, genre_1 < genre_2) %>%   # < now works on characters
+  arrange(desc(titles)) %>% 
+  slice(1)
+
+top_pair
+```
 
 ## Part IV: Joining Tables
 
 * Join the table with one title-genre per row from the previous section with the ratings table.
   * What is the highest rated genre? What is the lowest rated genre?
+```{r}
+# join tall title-genre table with ratings ---------------------------
+genre_ratings <- title_genre %>%          # assumes title_genre exists in session
+  inner_join(title_ratings %>% 
+               select(tconst, averageRating), 
+             by = "tconst")
+
+# average rating by genre -------------------------------------------
+genre_summary <- genre_ratings %>% 
+  group_by(genres) %>% 
+  summarise(
+    mean_rating = mean(averageRating, na.rm = TRUE),
+    n_titles    = n(),
+    .groups = "drop"
+  ) %>% 
+  arrange(desc(mean_rating))
+
+# highest- and lowest-rated genres ----------------------------------
+highest_genre <- genre_summary %>% slice_max(mean_rating, n = 1)
+lowest_genre  <- genre_summary %>% slice_min(mean_rating, n = 1)
+
+highest_genre   # highest rated
+lowest_genre    # lowest rated
+```
+
   * Using stacked bar charts, investigate the proportions of different genres over time. Are any incresing or decreasing? Use factor functions to help make the plots easier to read.
+```{r}
+library(forcats)
+
+# ── 0· bring startYear back in ──────────────────────────────────────
+tg_decade <- title_genre %>%                         # current tall tbl: tconst + genres
+  left_join(title_basics %>%                         # add startYear via tconst
+              select(tconst, startYear),
+            by = "tconst") %>% 
+  filter(!is.na(startYear), startYear >= 1900) %>%   # keep 1900+
+  mutate(
+    decade = as.factor(10 * floor(startYear / 10)),  # 1994 → "1990"
+    genres = trimws(genres)
+  )
+
+# ── 1· keep the 10 most common genres, lump the rest ────────────────
+top_10 <- tg_decade %>% 
+  count(genres, sort = TRUE) %>% 
+  slice_head(n = 10) %>% 
+  pull(genres)
+
+tg_decade <- tg_decade %>% 
+  mutate(genres = fct_other(genres, keep = top_10),
+         genres = fct_reorder(genres, genres, .fun = function(x) -length(x)))
+
+# ── 2· stacked-bar plot of genre proportions by decade ──────────────
+ggplot(tg_decade, aes(decade, fill = genres)) +
+  geom_bar(position = "fill") +
+  scale_y_continuous(labels = scales::percent) +
+  labs(title = "Proportion of genres by decade (top 10 + Other)",
+       x = "Decade", y = "Share of titles", fill = "Genre") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+Family appears to be decreasing, and short has dramtically decreased over the last 120 years. Documentaries have shown an increase over time, same with other.
+
 * Join the `title_basics` with the ratings table. Have the number of ratings changed over time (based on release year)? Display graphically but also answer with numerical results.
+```{r}
+
+Join with title_basics on tconst  ----------------------------------
+titles_votes <- title_basics %>%        # assumes title_basics already in memory
+  select(tconst, startYear) %>% 
+  inner_join(title_ratings %>% 
+               select(tconst, numVotes),
+             by = "tconst") %>% 
+  filter(!is.na(startYear), !is.na(numVotes))
+
+Total votes by release year  ---------------------------------------
+votes_by_year <- titles_votes %>% 
+  group_by(startYear) %>% 
+  summarise(total_votes = sum(numVotes), .groups = "drop") %>% 
+  arrange(startYear)
+
+Peek at the first and last few years
+head(votes_by_year)
+tail(votes_by_year)
+
+# plot the trend -------------------------------
+ggplot(votes_by_year, aes(startYear, total_votes)) +
+  geom_line(color = "steelblue") +
+  scale_y_continuous(labels = scales::comma) +
+  labs(title = "Total IMDb votes per release year (sample)",
+       x = "Release year", y = "Total number of votes") +
+  theme_minimal()
+```
+The number of ratings have drastically changed over time. Starting with 872 votes in 1887 and getting to 2893610 votes in 2022. The number of votes appear to have decreased in recent years after increasing quite a bit over the last 120 years.
+
+
+
 * Join the names with the ratings and the principals table. 
   * Group by individual people, find the top ten people based on the median rating of the titles they appear in.
   * Find the proportions of genres for the the titles that include the top 10 rated principals.
