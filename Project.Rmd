@@ -4,7 +4,6 @@ author: "Michael Kramer, Jack Reed, Ameer Amer"
 date: "`r Sys.Date()`"
 output:
   pdf_document: default
-  html_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -86,6 +85,7 @@ title_principals |>
   theme_minimal() +
   labs(title = "Principal Category Counts", x = "Category", y = "Count")
 ```
+
 ```{r}
 summary(title_ratings$averageRating)
 summary(title_ratings$numVotes)
@@ -244,17 +244,17 @@ print(n_alliterative)
 * Create a new version of the `titles_basics` table that has one row for each title-genre combination. See the `separate_rows` function for a useful too here.
 
 ```{r}
-title_basics <- read_rds("data/title_basics_sample.rda")   # or load(...rda)
+title_basics <- read_rds("data/title_basics_sample.rda")
 
 title_genre <- title_basics %>% 
   select(tconst, startYear, genres) %>% 
   filter(!is.na(genres), !is.na(startYear)) %>% 
-  separate_rows(genres, sep = ",") %>%            # 1 row per title‑genre
+  separate_rows(genres, sep = ",") %>%
   mutate(
-    startYear = as.integer(startYear),            # keeps year clean
-    genres     = trimws(genres)                   # removes leading spaces
+    startYear = as.integer(startYear), 
+    genres     = trimws(genres)   
   ) %>% 
-  filter(genres != "")                            # drop blanks if any
+  filter(genres != "") 
 
 glimpse(title_genre)
 ```
@@ -263,34 +263,29 @@ glimpse(title_genre)
 * Using that table, create a line plot of the count different genres over time (you may limit this to the most common genres if you wish).
 
 ```{r}
-# 0.  Load the table (use .rds or load the .rda you created)
-title_basics <- read_rds("data/title_basics_sample.rda")   # change if you used .rda
+title_basics <- read_rds("data/title_basics_sample.rda") 
 
-# 1.  Build the tall title‑genre table (one row per title–genre)
 title_genre <- title_basics %>% 
   select(tconst, startYear, genres) %>% 
   filter(!is.na(startYear), !is.na(genres)) %>% 
-  separate_rows(genres, sep = ",") %>%           # explode the genre list
+  separate_rows(genres, sep = ",") %>%          
   mutate(
-    startYear = as.integer(startYear),           # ensure numeric year
-    genres    = trimws(genres)                   # remove leading/trailing spaces
+    startYear = as.integer(startYear),      
+    genres    = trimws(genres)   
   ) %>% 
-  filter(genres != "")                           # drop any blanks
+  filter(genres != "")                           
 
-# 2.  Identify the top‑8 genres overall
 top_n <- 8
 top_genres <- title_genre %>% 
   count(genres, sort = TRUE) %>% 
   slice_head(n = top_n) %>% 
   pull(genres)
 
-# 3.  Aggregate yearly counts for those genres
 genre_trend <- title_genre %>% 
   filter(genres %in% top_genres) %>% 
   group_by(startYear, genres) %>% 
   summarise(n_titles = n(), .groups = "drop")
 
-# 4.  Plot
 ggplot(genre_trend, aes(startYear, n_titles, colour = genres)) +
   geom_line(linewidth = 0.7) +
   labs(
@@ -307,7 +302,6 @@ ggplot(genre_trend, aes(startYear, n_titles, colour = genres)) +
 library(tidyverse)
 library(Matrix)
 
-# tall table ------------------------------------------------------------
 title_genre <- title_basics %>% 
   select(tconst, genres) %>% 
   filter(!is.na(genres)) %>% 
@@ -315,18 +309,14 @@ title_genre <- title_basics %>%
   mutate(genres = trimws(genres)) %>% 
   filter(genres != "")
 
-# one-hot matrix --------------------------------------------------------
 mm <- model.matrix(~ genres - 1, data = title_genre)
 colnames(mm) <- sub("^genres", "", colnames(mm))
 
-# collapse to one row per film -----------------------------------------
 incidence <- (rowsum(as.matrix(mm), group = title_genre$tconst) > 0) * 1
 
-# co-occurrence counts --------------------------------------------------
 co_cnt <- crossprod(incidence)
 diag(co_cnt) <- 0
 
-# tidy upper-triangle (each pair once) ---------------------------------
 top_pair <- as.data.frame(as.table(co_cnt), stringsAsFactors = FALSE) %>% 
   rename(genre_1 = Var1, genre_2 = Var2, titles = Freq) %>% 
   filter(titles > 0, genre_1 < genre_2) %>%   # < now works on characters
@@ -341,13 +331,11 @@ top_pair
 * Join the table with one title-genre per row from the previous section with the ratings table.
   * What is the highest rated genre? What is the lowest rated genre?
 ```{r}
-# join tall title-genre table with ratings ---------------------------
 genre_ratings <- title_genre %>%          
   inner_join(title_ratings %>% 
                select(tconst, averageRating), 
              by = "tconst")
 
-# average rating by genre -------------------------------------------
 genre_summary <- genre_ratings %>% 
   group_by(genres) %>% 
   summarise(
@@ -357,7 +345,6 @@ genre_summary <- genre_ratings %>%
   ) %>% 
   arrange(desc(mean_rating))
 
-# highest- and lowest-rated genres ----------------------------------
 highest_genre <- genre_summary %>% slice_max(mean_rating, n = 1)
 lowest_genre  <- genre_summary %>% slice_min(mean_rating, n = 1)
 
@@ -369,13 +356,13 @@ lowest_genre    # lowest rated
 ```{r}
 library(forcats)
 
-tg_decade <- title_genre %>%                         # current tall tbl: tconst + genres
-  left_join(title_basics %>%                         # add startYear via tconst
+tg_decade <- title_genre %>%                
+  left_join(title_basics %>%     
               select(tconst, startYear),
             by = "tconst") %>% 
-  filter(!is.na(startYear), startYear >= 1900) %>%   # keep 1900+
+  filter(!is.na(startYear), startYear >= 1900) %>% 
   mutate(
-    decade = as.factor(10 * floor(startYear / 10)),  # 1994 → "1990"
+    decade = as.factor(10 * floor(startYear / 10)), 
     genres = trimws(genres)
   )
 
@@ -401,7 +388,6 @@ Family appears to be decreasing, and short has dramtically decreased over the la
 * Join the `title_basics` with the ratings table. Have the number of ratings changed over time (based on release year)? Display graphically but also answer with numerical results.
 ```{r}
 
-# Join with title_basics on tconst  ----------------------------------
 titles_votes <- title_basics %>%        # assumes title_basics already in memory
   select(tconst, startYear) %>% 
   inner_join(title_ratings %>% 
@@ -409,7 +395,6 @@ titles_votes <- title_basics %>%        # assumes title_basics already in memory
              by = "tconst") %>% 
   filter(!is.na(startYear), !is.na(numVotes))
 
-# Total votes by release year  ---------------------------------------
 votes_by_year <- titles_votes %>% 
   group_by(startYear) %>% 
   summarise(total_votes = sum(numVotes), .groups = "drop") %>% 
@@ -418,7 +403,6 @@ votes_by_year <- titles_votes %>%
 head(votes_by_year)
 tail(votes_by_year)
 
-# plot the trend -------------------------------
 ggplot(votes_by_year, aes(startYear, total_votes)) +
   geom_line(color = "steelblue") +
   scale_y_continuous(labels = scales::comma) +
@@ -433,14 +417,12 @@ The number of ratings have drastically changed over time. Starting with 872 vote
 * Join the names with the ratings and the principals table. 
   * Group by individual people, find the top ten people based on the median rating of the titles they appear in.
 ```{r}
-# join principals → ratings → names 
 principal_ratings <- title_principals %>%                 # tconst–nconst links
   select(tconst, nconst) %>% 
   inner_join(title_ratings %>% 
                select(tconst, averageRating),             # add rating
              by = "tconst")
 
-# median rating per person
 person_median <- principal_ratings %>% 
   group_by(nconst) %>% 
   summarise(
@@ -502,7 +484,7 @@ genre_props <- titles_top10p_genre %>%
 genre_props
 ```
   * Graph ratings against years. What trends do you see?
-```{r}
+```{r twenty}
 library(tidyverse)
 
 ratings_year <- title_basics %>% 
@@ -534,14 +516,12 @@ ggplot(year_summary, aes(startYear, mean_rating)) +
 
 * Create a table with one row for each person in the `name_basics` table and title they are known for. Join this to the ratings table to get the ratings of the "known for" films. Find the person (or people) who have the highest median known for rating.
 ```{r}
-# One row per (person × known-for title) ---------------------------
 knownfor_long <- name_basics %>% 
   select(nconst, primaryName, knownForTitles) %>% 
   filter(!is.na(knownForTitles)) %>% 
-  separate_rows(knownForTitles, sep = ",") %>%          # explode to one tconst per row
+  separate_rows(knownForTitles, sep = ",") %>%
   rename(tconst = knownForTitles)
 
-# Attach each film’s rating ----------------------------------------
 knownfor_rated <- knownfor_long %>% 
   inner_join(title_ratings %>% select(tconst, averageRating),
              by = "tconst")                             # drop films without ratings
@@ -549,8 +529,7 @@ knownfor_rated <- knownfor_long %>%
 # Median “known-for” rating per person -----------------------------
 person_medians <- knownfor_rated %>% 
   group_by(nconst, primaryName) %>% 
-  summarise(
-    n_films       = n(),
+  summarise(n_films = n(),
     median_rating = median(averageRating, na.rm = TRUE),
     .groups = "drop"
   )
@@ -570,8 +549,8 @@ best_people
 * Select a previous computation that could be improved using parallelization and implement a parallelization solution. Using `system.time` show that parallelization improves performance.
 * One task we performed involved counting items in strings separated by commas. Propose two different functions that could perform this taks. Compare them using bench marking. Which version would you recommend?
 
-```{r all-funs-and-tests, echo=TRUE, message=FALSE}
-# 1. Counting comma-separated items
+```{r echo=TRUE}
+
 count_items_strsplit <- function(x) {
   lengths(strsplit(x, ","))
 }
@@ -581,7 +560,7 @@ count_items_gregexpr <- function(x) {
   })
 }
 
-# 2. Alliteration detection in titles
+
 is_alliteration_base <- function(titles) {
   sapply(titles, function(title) {
     words <- unlist(strsplit(title, "\\s+"))
@@ -602,7 +581,7 @@ is_alliteration_stringi <- function(titles) {
   })
 }
 
-# 3. Runtime summarization by (titleType, genre)
+
 runtime_summary_dplyr <- function(df) {
   df %>%
     filter(!is.na(runtimeMinutes) & runtimeMinutes > 0) %>%
@@ -629,18 +608,18 @@ runtime_summary_dt <- function(df) {
   ), by = .(titleType, genres)]
 }
 
-# ---- Test calls ----
+
 # A) Test counting functions
 test_vec <- c("a,b,c", "d,e", "")
 cat("strsplit counts: ", count_items_strsplit(test_vec), "\n")
 cat("gregexpr counts:", count_items_gregexpr(test_vec), "\n\n")
 
-# B) Test alliteration functions
+
 test_titles <- c("Big Bad Wolf", "Crazy Cat", "Alpha Beta", "Solo")
 cat("base alliteration:    ", is_alliteration_base(test_titles), "\n")
 cat("stringi alliteration: ", is_alliteration_stringi(test_titles), "\n\n")
 
-# C) If `title_basics` is loaded, test summaries on the first 50 rows
+
 if (exists("title_basics")) {
   small_df <- head(title_basics, 50)
   cat("DPLYR summary (first 6 rows):\n")
@@ -650,7 +629,15 @@ if (exists("title_basics")) {
 }
 ```
 
-Our side‐by‐side comparison of the two routines on a 50-row sample shows that both runtime_summary_dplyr() and runtime_summary_dt() produce exactly the same counts, average runtimes, and median runtimes for each genre (e.g. Documentary, Comedy, Adventure, Drama). The only discrepancy was in the order of the rows: the dplyr version printed groups in the sequence they appeared in the data, whereas data.table used its own grouping order. Because the numerical results agree perfectly, you can choose between them based on needs: use dplyr for clear, pipe-based code or data.table when you need maximum speed on large IMDb samples. To solidify these conclusions, the next step is to benchmark both implementations on the full 100 000-title dataset (and even parallelize the faster one) to quantify real‐world performance gains.
+Our side‐by‐side comparison of the two routines on a 50-row sample shows that both 
+runtime_summary_dplyr() and runtime_summary_dt() produce exactly the same counts, average runtimes, and 
+median runtimes for each genre (e.g. Documentary, Comedy, Adventure, Drama). The only discrepancy was 
+in the order of the rows: the dplyr version printed groups in the sequence they appeared in the data, 
+whereas data.table used its own grouping order. Because the numerical results agree perfectly, you can 
+choose between them based on needs: use dplyr for clear, pipe-based code or data.table when you need 
+maximum speed on large IMDb samples. To solidify these conclusions, the next step is to benchmark both 
+implementations on the full 100 000-title dataset (and even parallelize the faster one) to quantify 
+real‐world performance gains.
 
 ## Part VI: Shiny Applications
 
@@ -660,118 +647,7 @@ Using results from the previous section, create a shiny application that allows 
 
 This Shiny app lets users explore IMDb titles by genre, release year, and minimum vote count. Users can switch between a runtime distribution plot and a ratings‐vs‐votes scatterplot, and view the filtered data in an interactive table.
 
-```{r app1, echo=FALSE}
-library(shiny)
-library(tidyverse)
-library(plotly)
-library(DT)
-
-# Load data
-name_basics   <- read_rds("data/name_basics_sample.rda")
-title_basics  <- read_rds("data/title_basics_sample.rda")
-title_ratings <- read_rds("data/title_ratings_sample.rda")
-
-# Preprocess for runtime plot
-title_genre <- title_basics %>%
-  filter(!is.na(startYear), !is.na(genres)) %>%
-  separate_rows(genres, sep = ",") %>%
-  mutate(
-    startYear      = as.integer(startYear),
-    runtimeMinutes = as.numeric(runtimeMinutes)
-  )
-
-ui <- fluidPage(
-  titlePanel("IMDb Interactive Explorer"),
-  sidebarLayout(
-    sidebarPanel(
-      selectInput(
-        "genre", "Select Genre(s)",
-        choices  = sort(unique(title_genre$genres)),
-        selected = c("Drama","Comedy"),
-        multiple = TRUE
-      ),
-      sliderInput(
-        "yearRange", "Release Year Range:",
-        min   = min(title_genre$startYear),
-        max   = max(title_genre$startYear),
-        value = c(2000,2020), sep = ""
-      ),
-      sliderInput(
-        "minVotes", "Minimum Number of Votes:",
-        min   = 0,
-        max   = max(title_ratings$numVotes, na.rm=TRUE),
-        value = 1000, step = 100
-      ),
-      selectInput(
-        "plotType", "Plot Type:",
-        choices = c("Runtime Distribution","Ratings vs Votes"),
-        selected = "Runtime Distribution"
-      )
-    ),
-    mainPanel(
-      plotlyOutput("mainPlot", height = "500px"),
-      br(),
-      DTOutput("dataTable")
-    )
-  )
-)
-
-server <- function(input, output, session) {
-  # Reactive filtered data by genre and year
-  filtered <- reactive({
-    req(input$genre)
-    title_genre %>%
-      filter(
-        genres    %in% input$genre,
-        startYear >= input$yearRange[1],
-        startYear <= input$yearRange[2]
-      )
-  })
-
-  output$mainPlot <- renderPlotly({
-    df <- filtered()
-    if (input$plotType == "Runtime Distribution") {
-      p <- ggplot(df, aes(x = runtimeMinutes, fill = genres,
-                           text = paste0(genres,": ",runtimeMinutes," min"))) +
-        geom_density(alpha = 0.4) +
-        labs(title = "Runtime Distribution by Genre",
-             x = "Runtime (minutes)", y = "Density")
-      ggplotly(p, tooltip = "text")
-    } else {
-      df2 <- title_basics %>%
-        inner_join(title_ratings, by="tconst") %>%
-        separate_rows(genres, sep=",") %>%
-        filter(
-          genres    %in% input$genre,
-          startYear >= input$yearRange[1],
-          startYear <= input$yearRange[2],
-          numVotes  >= input$minVotes
-        )
-      p2 <- ggplot(df2, aes(x = numVotes, y = averageRating,
-                             color = genres,
-                             text = paste0(primaryTitle," (",startYear,")"))) +
-        geom_point(alpha = 0.7) +
-        scale_x_log10() +
-        labs(title = "Average Rating vs Number of Votes",
-             x = "Number of Votes (log scale)",
-             y = "Average Rating")
-      ggplotly(p2, tooltip = "text")
-    }
-  })
-
-  output$dataTable <- renderDT({
-    df_tab <- filtered() %>%
-      left_join(title_basics %>% select(tconst, primaryTitle, startYear), by="tconst") %>%
-      left_join(title_ratings %>% select(tconst, averageRating, numVotes), by="tconst") %>%
-      select(primaryTitle, startYear, genres, runtimeMinutes, averageRating, numVotes) %>%
-      distinct() %>%
-      arrange(desc(numVotes))
-    datatable(df_tab, options = list(pageLength = 10, scrollX = TRUE))
-  })
-}
-
-shinyApp(ui, server)
-```
+Check Jack Reed's posit cloud
 
 ### Application 2
 
@@ -779,190 +655,11 @@ In the principals table, there is a `category` column. Use this column as a prim
 
 Below is a Shiny app that lets users filter the **title_principals** table by one or more `category` values, then view details (person name, title, year, job, characters) in a DT table.
 
-```{r app2, echo=FALSE}
-library(shiny)
-library(tidyverse)
-library(DT)
-
-# Load data (reuse from above)
-name_basics      <- read_rds("data/name_basics_sample.rda")
-title_basics     <- read_rds("data/title_basics_sample.rda")
-title_principals <- read_rds("data/title_principals_sample.rda")
-
-ui2 <- fluidPage(
-  titlePanel("IMDb Principals Explorer"),
-  sidebarLayout(
-    sidebarPanel(
-      selectInput(
-        "categories", "Select Job Category(ies)",
-        choices  = sort(unique(title_principals$category)),
-        multiple = TRUE
-      )
-    ),
-    mainPanel(
-      DTOutput("principalsTable")
-    )
-  )
-)
-
-server2 <- function(input, output, session) {
-  filtered_principals <- reactive({
-    req(input$categories)
-    title_principals %>%
-      filter(category %in% input$categories) %>%
-      left_join(name_basics %>% select(nconst, primaryName), by = "nconst") %>%
-      left_join(title_basics %>% select(tconst, primaryTitle, startYear), by = "tconst") %>%
-      select(
-        Category   = category,
-        Person     = primaryName,
-        Title      = primaryTitle,
-        Year       = startYear,
-        Job        = job,
-        Characters = characters
-      )
-  })
-
-  output$principalsTable <- renderDT({
-    datatable(
-      filtered_principals(),
-      options = list(pageLength = 10, scrollX = TRUE)
-    )
-  })
-}
-shinyApp(ui = ui2, server = server2)
-```
+check Jack Reed's posit cloud
 
 
 ## Extra Credit: 6 Degrees of Kevin Bacon
 
 Create an app to allow users to play [Six Degrees of Kevin Bacon](https://en.wikipedia.org/wiki/Six_Degrees_of_Kevin_Bacon#:~:text=Six%20Degrees%20of%20Kevin%20Bacon%20or%20Bacon's%20Law%20is%20a,ultimately%20leads%20to%20prolific%20American).
 
-```{r}
-library(shiny)
-library(tidyverse)
-
-# Load IMDb sample data
-data.dir <- "data/"
-name_basics      <- read_rds(file.path(data.dir, "name_basics_sample.rda"))
-title_basics     <- read_rds(file.path(data.dir, "title_basics_sample.rda"))
-title_principals <- read_rds(file.path(data.dir, "title_principals_sample.rda"))
-
-ui <- fluidPage(
-  titlePanel("Six Degrees of Kevin Bacon"),
-  sidebarLayout(
-    sidebarPanel(
-      textInput("movie", "Enter movie or TV show title:"),
-      actionButton("startBtn", "Start Game"),
-      br(),
-      uiOutput("selectPersonUI"),
-      actionButton("nextBtn", "Next"),
-      actionButton("resetBtn", "Reset Game")
-    ),
-    mainPanel(
-      tableOutput("chain"),
-      textOutput("message")
-    )
-  )
-)
-
-server <- function(input, output, session) {
-  rv <- reactiveValues(
-    step = 0,
-    chain = tibble(Step = integer(), Person = character()),
-    coactors = NULL,
-    message = ""
-  )
-
-  # Start the game by loading cast of the entered movie
-  observeEvent(input$startBtn, {
-    req(input$movie)
-    rv$step <- 1
-    rv$chain <- tibble(Step = 1, Person = NA_character_)
-
-    title_row <- title_basics %>%
-      filter(str_to_lower(primaryTitle) == str_to_lower(input$movie))
-    if (nrow(title_row) == 0) {
-      rv$message <- paste0("Title '", input$movie, "' not found.")
-      rv$step <- 0
-      return()
-    }
-    tconst <- title_row$tconst[1]
-    rv$coactors <- title_principals %>%
-      filter(tconst == tconst) %>%
-      left_join(name_basics, by = "nconst") %>%
-      select(nconst, primaryName)
-    rv$message <- paste0("Step 1: select a cast member from '", input$movie, "'.")
-  })
-
-  # Dynamic UI for selecting a person
-  output$selectPersonUI <- renderUI({
-    if (rv$step > 0 && rv$step <= 6 && !is.null(rv$coactors)) {
-      selectInput(
-        "person",
-        label = paste0("Degree ", rv$step, ": choose a person"),
-        choices = rv$coactors$primaryName,
-        selected = NULL
-      )
-    }
-  })
-
-  # Handle Next button
-  observeEvent(input$nextBtn, {
-    req(rv$step > 0 && rv$step <= 6)
-    sel_name <- input$person
-    if (is.null(sel_name) || sel_name == "") return()
-
-    # Find nconst of selected person
-    sel_nconst <- rv$coactors$nconst[rv$coactors$primaryName == sel_name]
-    rv$chain$Person[rv$chain$Step == rv$step] <- sel_name
-
-    # Check for Kevin Bacon
-    if (sel_nconst == 'nm0000102') {
-      rv$message <- paste0("Congratulations! You reached Kevin Bacon in ", rv$step, " degrees.")
-      rv$step <- 0
-      return()
-    }
-
-    # Check if exceeded 6 steps
-    if (rv$step == 6) {
-      rv$message <- "Sorry, you've used 6 steps without reaching Kevin Bacon. You lose."
-      rv$step <- 0
-      return()
-    }
-
-    # Prepare next set of co-actors
-    titles_played <- title_principals %>% filter(nconst == sel_nconst) %>% pull(tconst)
-    next_coactors <- title_principals %>%
-      filter(tconst %in% titles_played, nconst != sel_nconst) %>%
-      distinct(nconst) %>%
-      left_join(name_basics, by = "nconst") %>%
-      select(nconst, primaryName)
-    rv$coactors <- next_coactors
-
-    # Increment step and update chain
-    rv$step <- rv$step + 1
-    rv$chain <- bind_rows(rv$chain, tibble(Step = rv$step, Person = NA_character_))
-    rv$message <- paste0("Step ", rv$step, ": select someone who worked with ", sel_name, ".")
-  })
-
-  # Display the chain table
-  output$chain <- renderTable({
-    rv$chain
-  })
-
-  # Display status message
-  output$message <- renderText({
-    rv$message
-  })
-
-  # Reset game
-  observeEvent(input$resetBtn, {
-    rv$step <- 0
-    rv$chain <- tibble(Step = integer(), Person = character())
-    rv$coactors <- NULL
-    rv$message <- "Game reset. Enter a new title to start."  
-  })
-}
-
-shinyApp(ui, server)
-```
+check Jack Reed's posit cloud
