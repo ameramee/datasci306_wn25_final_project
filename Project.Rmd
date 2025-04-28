@@ -340,7 +340,7 @@ top_pair
   * What is the highest rated genre? What is the lowest rated genre?
 ```{r}
 # join tall title-genre table with ratings ---------------------------
-genre_ratings <- title_genre %>%          # assumes title_genre exists in session
+genre_ratings <- title_genre %>%          
   inner_join(title_ratings %>% 
                select(tconst, averageRating), 
              by = "tconst")
@@ -416,7 +416,6 @@ votes_by_year <- titles_votes %>%
   summarise(total_votes = sum(numVotes), .groups = "drop") %>% 
   arrange(startYear)
 
-Peek at the first and last few years
 head(votes_by_year)
 tail(votes_by_year)
 
@@ -593,5 +592,3 @@ In the principals table, there is a `category` column. Use this column as a prim
 Create an app to allow users to play [Six Degrees of Kevin Bacon](https://en.wikipedia.org/wiki/Six_Degrees_of_Kevin_Bacon#:~:text=Six%20Degrees%20of%20Kevin%20Bacon%20or%20Bacon's%20Law%20is%20a,ultimately%20leads%20to%20prolific%20American).
 
 Create a Shiny application where a person can type the primary title of movie or TV show. Then have app show all the people who had a role in the show. Let the user select a person in that cast and show all other people who have been in a title with that person. Repeat up to 6 times. If "Kevin Bacon" (`nconst == 'nm0000102'`) ever appears in the list, let the player know they have won! If they click more than 6 times, let them know they have lost.
-
-
