@@ -1,8 +1,11 @@
 ---
 title: "DataSci 306 Final Project"
-author: "DataSci 306 Instructional Team"
+author: "Michael Kramer, Jack Reed, Ameer Amer"
 date: "`r Sys.Date()`"
-output: html_document
+output:
+  pdf_document: default
+  html_document: default
+runtime: shiny
 ---
 
 ```{r setup, include=FALSE}
@@ -367,7 +370,7 @@ lowest_genre    # lowest rated
 ```{r}
 library(forcats)
 
-# ── 0· bring startYear back in ──────────────────────────────────────
+# ── 0· bring startYear back in 
 tg_decade <- title_genre %>%                         # current tall tbl: tconst + genres
   left_join(title_basics %>%                         # add startYear via tconst
               select(tconst, startYear),
@@ -378,7 +381,7 @@ tg_decade <- title_genre %>%                         # current tall tbl: tconst 
     genres = trimws(genres)
   )
 
-# ── 1· keep the 10 most common genres, lump the rest ────────────────
+# ── 1· keep the 10 most common genres, lump the rest
 top_10 <- tg_decade %>% 
   count(genres, sort = TRUE) %>% 
   slice_head(n = 10) %>% 
@@ -388,7 +391,7 @@ tg_decade <- tg_decade %>%
   mutate(genres = fct_other(genres, keep = top_10),
          genres = fct_reorder(genres, genres, .fun = function(x) -length(x)))
 
-# ── 2· stacked-bar plot of genre proportions by decade ──────────────
+# ── 2· stacked-bar plot of genre proportions by decade
 ggplot(tg_decade, aes(decade, fill = genres)) +
   geom_bar(position = "fill") +
   scale_y_continuous(labels = scales::percent) +
@@ -434,14 +437,14 @@ The number of ratings have drastically changed over time. Starting with 872 vote
 * Join the names with the ratings and the principals table. 
   * Group by individual people, find the top ten people based on the median rating of the titles they appear in.
 ```{r}
-# join principals → ratings → names ─────────────────────────────
+# join principals → ratings → names 
 principal_ratings <- title_principals %>%                 # tconst–nconst links
   select(tconst, nconst) %>% 
   inner_join(title_ratings %>% 
                select(tconst, averageRating),             # add rating
              by = "tconst")
 
-# median rating per person ─────────────────────────────────────-
+# median rating per person
 person_median <- principal_ratings %>% 
   group_by(nconst) %>% 
   summarise(
@@ -452,7 +455,7 @@ person_median <- principal_ratings %>%
   filter(n_titles >= 3) %>%             # keep folks with ≥ 3 rated titles (adjust if desired)
   arrange(desc(median_rating))
 
-# top-10 people, attach names & print ───────────────────────────
+# top-10 people, attach names & print
 top10_people <- person_median %>% 
   slice_head(n = 10) %>% 
   left_join(name_basics %>% select(nconst, primaryName), by = "nconst") %>% 
@@ -462,7 +465,7 @@ top10_people
 ```
   * Find the proportions of genres for the the titles that include the top 10 rated principals.
 ```{r}
-# ── 0 · if person_median isn't in memory, rebuild it quickly ──────────
+# ── 0 · if person_median isn't in memory, rebuild it quickly
 if (!exists("person_median")) {
   person_median <- title_principals %>% 
     select(tconst, nconst) %>% 
@@ -477,7 +480,7 @@ if (!exists("person_median")) {
     arrange(desc(median_rating))
 }
 
-# get the nconst codes of the top-10 rated principals ───────────
+# get the nconst codes of the top-10 rated principals
 top10_ids <- person_median %>% 
   slice_head(n = 10) %>% 
   pull(nconst)
@@ -487,7 +490,7 @@ titles_top10p <- title_principals %>%
   filter(nconst %in% top10_ids) %>% 
   distinct(tconst)
 
-# explode genres for those titles ──────────────────────────────
+# explode genres for those titles
 titles_top10p_genre <- titles_top10p %>% 
   inner_join(title_basics %>% select(tconst, genres),
              by = "tconst") %>% 
@@ -496,7 +499,7 @@ titles_top10p_genre <- titles_top10p %>%
   filter(genres != "") %>% 
   distinct(tconst, genres)
 
-# genre proportions among these titles ─────────────────────────
+# genre proportions among these titles
 genre_props <- titles_top10p_genre %>% 
   count(genres, name = "n_titles") %>% 
   mutate(prop = n_titles / sum(n_titles)) %>% 
@@ -568,7 +571,6 @@ best_people <- person_medians %>%
 best_people
 ```
 
-* 
 
 ## Part V: Profiling and Parallel Processing
 
@@ -836,9 +838,7 @@ server2 <- function(input, output, session) {
     )
   })
 }
-
-# To run Application 2 within the same document, call:
-# shinyApp(ui2, server2)
+shinyApp(ui = ui2, server = server2)
 ```
 
 
@@ -975,5 +975,3 @@ server <- function(input, output, session) {
 
 shinyApp(ui, server)
 ```
-
-
