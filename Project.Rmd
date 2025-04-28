@@ -370,7 +370,6 @@ lowest_genre    # lowest rated
 ```{r}
 library(forcats)
 
-# ── 0· bring startYear back in 
 tg_decade <- title_genre %>%                         # current tall tbl: tconst + genres
   left_join(title_basics %>%                         # add startYear via tconst
               select(tconst, startYear),
@@ -381,7 +380,6 @@ tg_decade <- title_genre %>%                         # current tall tbl: tconst 
     genres = trimws(genres)
   )
 
-# ── 1· keep the 10 most common genres, lump the rest
 top_10 <- tg_decade %>% 
   count(genres, sort = TRUE) %>% 
   slice_head(n = 10) %>% 
@@ -391,7 +389,6 @@ tg_decade <- tg_decade %>%
   mutate(genres = fct_other(genres, keep = top_10),
          genres = fct_reorder(genres, genres, .fun = function(x) -length(x)))
 
-# ── 2· stacked-bar plot of genre proportions by decade
 ggplot(tg_decade, aes(decade, fill = genres)) +
   geom_bar(position = "fill") +
   scale_y_continuous(labels = scales::percent) +
@@ -452,7 +449,7 @@ person_median <- principal_ratings %>%
     median_rating = median(averageRating, na.rm = TRUE),
     .groups = "drop"
   ) %>% 
-  filter(n_titles >= 3) %>%             # keep folks with ≥ 3 rated titles (adjust if desired)
+  filter(n_titles >= 3) %>%
   arrange(desc(median_rating))
 
 # top-10 people, attach names & print
@@ -465,7 +462,6 @@ top10_people
 ```
   * Find the proportions of genres for the the titles that include the top 10 rated principals.
 ```{r}
-# ── 0 · if person_median isn't in memory, rebuild it quickly
 if (!exists("person_median")) {
   person_median <- title_principals %>% 
     select(tconst, nconst) %>% 
@@ -485,7 +481,6 @@ top10_ids <- person_median %>%
   slice_head(n = 10) %>% 
   pull(nconst)
 
-# find all titles that feature at least one of those principals ─
 titles_top10p <- title_principals %>% 
   filter(nconst %in% top10_ids) %>% 
   distinct(tconst)
@@ -511,14 +506,12 @@ genre_props
 ```{r}
 library(tidyverse)
 
-# 1 ── join year + rating  (same join as before, but we only keep columns we need)
 ratings_year <- title_basics %>% 
   select(tconst, startYear) %>% 
   filter(!is.na(startYear)) %>% 
   inner_join(title_ratings %>% select(tconst, averageRating),
              by = "tconst")
 
-# 2 ── yearly summary  (fast — only ~140 rows)
 year_summary <- ratings_year %>% 
   group_by(startYear) %>% 
   summarise(
@@ -528,7 +521,6 @@ year_summary <- ratings_year %>%
     .groups = "drop"
   )
 
-# 3 ── plot: one point per year, line = mean trend
 ggplot(year_summary, aes(startYear, mean_rating)) +
   geom_line(colour = "steelblue") +                 # smooth-ish line
   geom_point(aes(size = n_titles),                  # point size = # titles
