@@ -506,7 +506,69 @@ genre_props <- titles_top10p_genre %>%
 genre_props
 ```
   * Graph ratings against years. What trends do you see?
+```{r}
+library(tidyverse)
+
+# 1 ── join year + rating  (same join as before, but we only keep columns we need)
+ratings_year <- title_basics %>% 
+  select(tconst, startYear) %>% 
+  filter(!is.na(startYear)) %>% 
+  inner_join(title_ratings %>% select(tconst, averageRating),
+             by = "tconst")
+
+# 2 ── yearly summary  (fast — only ~140 rows)
+year_summary <- ratings_year %>% 
+  group_by(startYear) %>% 
+  summarise(
+    n_titles      = n(),
+    mean_rating   = mean(averageRating, na.rm = TRUE),
+    median_rating = median(averageRating, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# 3 ── plot: one point per year, line = mean trend
+ggplot(year_summary, aes(startYear, mean_rating)) +
+  geom_line(colour = "steelblue") +                 # smooth-ish line
+  geom_point(aes(size = n_titles),                  # point size = # titles
+             colour = "steelblue", alpha = 0.6) +
+  scale_size_continuous(name = "Titles that year", range = c(0.5, 4)) +
+  scale_y_continuous(limits = c(0, 10)) +
+  labs(title = "Mean IMDb rating by release year (sample)",
+       x = "Release year", y = "Mean rating") +
+  theme_minimal()
+```
+
+
 * Create a table with one row for each person in the `name_basics` table and title they are known for. Join this to the ratings table to get the ratings of the "known for" films. Find the person (or people) who have the highest median known for rating.
+```{r}
+# One row per (person × known-for title) ---------------------------
+knownfor_long <- name_basics %>% 
+  select(nconst, primaryName, knownForTitles) %>% 
+  filter(!is.na(knownForTitles)) %>% 
+  separate_rows(knownForTitles, sep = ",") %>%          # explode to one tconst per row
+  rename(tconst = knownForTitles)
+
+# Attach each film’s rating ----------------------------------------
+knownfor_rated <- knownfor_long %>% 
+  inner_join(title_ratings %>% select(tconst, averageRating),
+             by = "tconst")                             # drop films without ratings
+
+# Median “known-for” rating per person -----------------------------
+person_medians <- knownfor_rated %>% 
+  group_by(nconst, primaryName) %>% 
+  summarise(
+    n_films       = n(),
+    median_rating = median(averageRating, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# Identify the highest median (may be ties) ------------------------
+best_people <- person_medians %>% 
+  filter(median_rating == max(median_rating))
+
+best_people
+```
+
 * 
 
 ## Part V: Profiling and Parallel Processing
