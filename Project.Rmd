@@ -434,7 +434,77 @@ The number of ratings have drastically changed over time. Starting with 872 vote
 
 * Join the names with the ratings and the principals table. 
   * Group by individual people, find the top ten people based on the median rating of the titles they appear in.
+```{r}
+# join principals → ratings → names ─────────────────────────────
+principal_ratings <- title_principals %>%                 # tconst–nconst links
+  select(tconst, nconst) %>% 
+  inner_join(title_ratings %>% 
+               select(tconst, averageRating),             # add rating
+             by = "tconst")
+
+# median rating per person ─────────────────────────────────────-
+person_median <- principal_ratings %>% 
+  group_by(nconst) %>% 
+  summarise(
+    n_titles      = n(),
+    median_rating = median(averageRating, na.rm = TRUE),
+    .groups = "drop"
+  ) %>% 
+  filter(n_titles >= 3) %>%             # keep folks with ≥ 3 rated titles (adjust if desired)
+  arrange(desc(median_rating))
+
+# top-10 people, attach names & print ───────────────────────────
+top10_people <- person_median %>% 
+  slice_head(n = 10) %>% 
+  left_join(name_basics %>% select(nconst, primaryName), by = "nconst") %>% 
+  select(primaryName, n_titles, median_rating)
+
+top10_people
+```
   * Find the proportions of genres for the the titles that include the top 10 rated principals.
+```{r}
+# ── 0 · if person_median isn't in memory, rebuild it quickly ──────────
+if (!exists("person_median")) {
+  person_median <- title_principals %>% 
+    select(tconst, nconst) %>% 
+    inner_join(title_ratings %>% select(tconst, averageRating), by = "tconst") %>% 
+    group_by(nconst) %>% 
+    summarise(
+      n_titles      = n(),
+      median_rating = median(averageRating, na.rm = TRUE),
+      .groups = "drop"
+    ) %>% 
+    filter(n_titles >= 3) %>% 
+    arrange(desc(median_rating))
+}
+
+# get the nconst codes of the top-10 rated principals ───────────
+top10_ids <- person_median %>% 
+  slice_head(n = 10) %>% 
+  pull(nconst)
+
+# find all titles that feature at least one of those principals ─
+titles_top10p <- title_principals %>% 
+  filter(nconst %in% top10_ids) %>% 
+  distinct(tconst)
+
+# explode genres for those titles ──────────────────────────────
+titles_top10p_genre <- titles_top10p %>% 
+  inner_join(title_basics %>% select(tconst, genres),
+             by = "tconst") %>% 
+  separate_rows(genres, sep = ",") %>% 
+  mutate(genres = trimws(genres)) %>% 
+  filter(genres != "") %>% 
+  distinct(tconst, genres)
+
+# genre proportions among these titles ─────────────────────────
+genre_props <- titles_top10p_genre %>% 
+  count(genres, name = "n_titles") %>% 
+  mutate(prop = n_titles / sum(n_titles)) %>% 
+  arrange(desc(prop))
+
+genre_props
+```
   * Graph ratings against years. What trends do you see?
 * Create a table with one row for each person in the `name_basics` table and title they are known for. Join this to the ratings table to get the ratings of the "known for" films. Find the person (or people) who have the highest median known for rating.
 * 
