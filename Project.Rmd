@@ -5,7 +5,6 @@ date: "`r Sys.Date()`"
 output:
   pdf_document: default
   html_document: default
-runtime: shiny
 ---
 
 ```{r setup, include=FALSE}
